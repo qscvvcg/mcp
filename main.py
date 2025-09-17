@@ -98,7 +98,7 @@ if not api_key:
 
 llm = ChatTongyi(
     dashscope_api_key=api_key,
-    model_name="qwen-turbo",  # 使用 qwen-max 模型
+    model_name="qwen-max",  # 使用 qwen-max 模型
     temperature=0.3
 )
 
@@ -170,7 +170,7 @@ async def health_check():
     api_key = "sk-cb5d9fe04d7b4adba5952fa2de765def"
     if not api_key:
         return {"status": "unhealthy", "error": "Missing DASHSCOPE_API_KEY"}, 503
-    return {"status": "healthy", "llm": "qwen-turbo", "provider": "dashscope"}
+    return {"status": "healthy", "llm": "qwen-max", "provider": "dashscope"}
 
 # 运行服务（仅本地测试）
 if __name__ == "__main__":
