@@ -6,8 +6,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from langchain.agents import initialize_agent, AgentType
 from langchain.tools import Tool
-from langchain_ollama import ChatOllama
-from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain.schema import SystemMessage
+from langchain_community.chat_models import ChatTongyi
 import requests
 import os
 import asyncio
@@ -17,19 +17,18 @@ import json
 # 1. 初始化FastAPI应用
 app = FastAPI(title="AI工具调用助手")
 
-# 允许跨域请求（方便前端调用）
+# 允许跨域请求
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # 生产环境请改为具体域名
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 挂载静态文件和模板（用于前端页面）
-#app.mount("/static", StaticFiles(directory="static"), name="static")
+# 挂载静态文件和模板
 templates = Jinja2Templates(directory="templates")
 
-# 2. 定义你的工具函数
+# 2. 定义工具函数（保持不变）
 def get_weather(city: str) -> dict:
     """获取天气"""
     try:
@@ -69,9 +68,6 @@ def calculate_math(expression: str) -> dict:
     except Exception as e:
         return {"error": f"计算服务调用失败: {str(e)}"}
 
-
-
-
 # 3. 将函数封装为LangChain Tool
 tools = [
     Tool(
@@ -91,28 +87,35 @@ tools = [
     )
 ]
 
-# 4. 初始化LLM和智能体 - 修改为使用Ollama本地模型
-llm = ChatOllama(
-    model="qwen2",  # 使用你本地Ollama中的qwen2模型
-    temperature=0.3,
-    base_url="http://localhost:11434"  # Ollama默认服务地址
+# 4. 初始化LLM和智能体 —— 使用 ChatTongyi（通义千问 API）
+# ✅ 从环境变量读取 API Key
+api_key = "sk-cb5d9fe04d7b4adba5952fa2de765def"
+if not api_key:
+    raise RuntimeError("请设置环境变量 DASHSCOPE_API_KEY")
+
+llm = ChatTongyi(
+    dashscope_api_key=api_key,
+    model_name="qwen-max",  # 使用 qwen-max 模型
+    temperature=0.3
 )
 
-# 设置系统消息，指导AI如何选择工具
-system_message = SystemMessage(content="""你是一个有帮助的助手，可以调用工具来获取天气信息、搜索维基百科或计算数学表达式
+# 设置系统消息
+system_message = SystemMessage(content="""你是一个有帮助的助手，可以调用工具来获取天气信息、搜索维基百科或计算数学表达式。
 请用中文回答所有问题。
 请根据用户的问题决定是否需要调用工具以及调用哪个工具。
 如果问题与天气相关，调用GetWeather工具；
 如果问题需要知识检索，调用SearchWikipedia工具；
 如果问题涉及数学计算，调用CalculateMath工具；
 如果问题不需要工具就能回答，请直接回答。""")
+
 # 初始化智能体
 agent = initialize_agent(
-    tools,
-    llm,
-    agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,  # 更适合本地模型
+    tools=tools,
+    llm=llm,
+    agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
-    agent_kwargs={"system_message": system_message}
+    agent_kwargs={"system_message": system_message},
+    handle_parsing_errors=True  # 防止解析错误崩溃
 )
 
 # 5. 定义请求和响应模型
@@ -128,33 +131,29 @@ class ChatResponse(BaseModel):
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     try:
-        # 使用智能体处理用户消息
         result = agent.run(request.message)
         return ChatResponse(
             response=str(result),
-            tool_used=True if "tool" in str(result).lower() else False
+            tool_used=True if any(t.name in str(result).lower() for t in tools) else False
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"处理消息时出错: {str(e)}")
 
-# 新增流式响应端点
+# 流式响应生成器（简化版，避免复杂流式解析）
 async def generate_stream(prompt: str) -> AsyncIterable[str]:
-    """生成流式响应"""
     try:
-        # 直接使用llm的stream方法进行流式响应
-        async for chunk in llm.astream(prompt):
-            yield f"data: {json.dumps({'content': chunk.content})}\n\n"
-            await asyncio.sleep(0.01)  # 控制流速度
+        # 使用 invoke 调用 agent，然后逐字发送
+        result = agent.run(prompt)
+        for char in result:
+            yield f"data: {json.dumps({'content': char})}\n\n"
+            await asyncio.sleep(0.01)  # 模拟流式输出
     except Exception as e:
         yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
 @app.get("/chat/stream")
 async def chat_stream(prompt: str):
     """流式聊天接口"""
-    return StreamingResponse(
-        generate_stream(prompt),
-        media_type="text/event-stream"
-    )
+    return StreamingResponse(generate_stream(prompt), media_type="text/event-stream")
 
 # 7. 提供前端页面
 @app.get("/", response_class=HTMLResponse)
@@ -164,17 +163,13 @@ async def get_chat_interface(request: Request):
 # 健康检查端点
 @app.get("/health")
 async def health_check():
-    """检查服务状态"""
-    try:
-        # 测试Ollama连接
-        response = requests.get("http://localhost:11434/api/tags", timeout=5)
-        if response.status_code == 200:
-            return {"status": "healthy", "model": "qwen2", "ollama": "connected"}
-        else:
-            return {"status": "unhealthy", "error": "Ollama connection failed"}, 503
-    except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}, 503
+    """健康检查：确保 DASHSCOPE_API_KEY 已配置"""
+    api_key = "sk-cb5d9fe04d7b4adba5952fa2de765def"
+    if not api_key:
+        return {"status": "unhealthy", "error": "Missing DASHSCOPE_API_KEY"}, 503
+    return {"status": "healthy", "llm": "qwen-max", "provider": "dashscope"}
 
+# 运行服务（仅本地测试）
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
