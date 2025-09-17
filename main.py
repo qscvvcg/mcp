@@ -13,7 +13,10 @@ import os
 import asyncio
 from typing import AsyncIterable
 import json
-
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+# 或更具体地过滤 LangChain 的警告
+warnings.filterwarnings("ignore", category=FutureWarning)
 # 1. 初始化FastAPI应用
 app = FastAPI(title="AI工具调用助手")
 
