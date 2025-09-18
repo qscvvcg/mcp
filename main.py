@@ -12,6 +12,7 @@ import requests
 import os
 import asyncio
 from typing import AsyncIterable
+from opencc import OpenCC
 import json
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -19,7 +20,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 # 1. 初始化FastAPI应用
 app = FastAPI(title="AI工具调用助手")
-
+cc = OpenCC('s2tw')
 # 允许跨域请求
 app.add_middleware(
     CORSMiddleware,
@@ -135,12 +136,14 @@ class ChatResponse(BaseModel):
 async def chat_endpoint(request: ChatRequest):
     try:
         result = agent.run(request.message)
+
+        reply = cc.convert(result)
         return ChatResponse(
-            response=str(result),
+            response=reply,
             tool_used=True if any(t.name in str(result).lower() for t in tools) else False
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"处理消息时出错: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"處理消息時出錯: {str(e)}")
 
 # 流式响应生成器（简化版，避免复杂流式解析）
 async def generate_stream(prompt: str) -> AsyncIterable[str]:
