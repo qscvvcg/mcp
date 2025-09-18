@@ -13,4 +13,4 @@ dashscope>=1.20.2
 
 # 可选：如果你用了 Pydantic v2（FastAPI 默认）
 pydantic>=2.8.0
-opencc-python-reimplemented>=1.0.0
+opencc-python-reimplemented>=0.1.1
