@@ -271,12 +271,12 @@
   <!-- 左侧会话栏 -->
   <div class="sidebar">
     <div class="sidebar-header">
-      我的对话
+      我的對話
     </div>
     <div class="conversation-list" id="conversation-list">
       <!-- 动态插入对话 -->
     </div>
-    <button class="new-chat-btn" onclick="createNewChat()">+ 新建对话</button>
+    <button class="new-chat-btn" onclick="createNewChat()">+ 新建對話</button>
   </div>
 
   <!-- 主内容区 -->
@@ -290,7 +290,7 @@
       </div>
       <!-- 固定输入框 -->
       <div class="input-area">
-        <input type="text" id="user-input" placeholder="输入你的问题,按 Enter 发送" />
+        <input type="text" id="user-input" placeholder="輸入你的問題，按Enter進行發送" />
         <span class="send-icon" onclick="sendMessage()">&#x27A4;</span>
         <div class="input-controls"></div>
       </div>
@@ -307,7 +307,7 @@
   if (conversations.length === 0) {
     const firstChat = {
       id: Date.now(),
-      title: "第一个对话",
+      title: "第一個對話",
       messages: []
     };
     conversations.push(firstChat);
@@ -379,7 +379,7 @@
     chatBox.innerHTML = '';
 
     if (chat.messages.length === 0) {
-      addMessage('bot', '你可以开始提问了。');
+      addMessage('bot', '你可以開始提問了。');
     } else {
       chat.messages.forEach((msg, index) => {
         addMessage(msg.sender, msg.text, index);
@@ -394,7 +394,7 @@
     const id = Date.now();
     const newChat = {
       id,
-      title: `新对话`,
+      title: `新對話`,
       messages: []
     };
     conversations.push(newChat);
@@ -405,7 +405,7 @@
   // 删除整个对话
   function deleteConversation(chatId) {
     if (conversations.length <= 1) {
-      alert('至少保留一个对话！');
+      alert('至少保留一個對話！');
       return;
     }
 
@@ -435,7 +435,7 @@
     chat.messages.push({ sender: 'user', text: message });
 
     // 首次提问时更新标题
-    if (chat.title.includes("新对话")) {
+    if (chat.title.includes("新對話")) {
       chat.title = message.length > 12 ? message.substring(0, 12) + '...' : message;
       initConversations();
     }
